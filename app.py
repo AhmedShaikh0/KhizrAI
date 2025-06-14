@@ -113,4 +113,6 @@ def new_conversation():
 
 if __name__ == "__main__":
     os.makedirs(app.config["SESSION_FILE_DIR"], exist_ok=True)
-    app.run(debug=True)
+    # For Railway: bind to 0.0.0.0 and use PORT from env
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
