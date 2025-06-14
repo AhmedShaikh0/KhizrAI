@@ -7,46 +7,36 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    body, html {
-      height: 100%;
-      margin: 0;
+    body {
+      height: 100vh;
       overflow: hidden;
-      background-color: #121212;
-      color: #eee;
     }
     .chat-container {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
+      height: 100%;
     }
     .sidebar {
       background-color: #1e1e1e;
       overflow-y: auto;
       padding: 1rem;
       border-right: 1px solid #333;
-      height: 100vh;
+      height: 100%;
     }
     .chat-window {
-      flex: 1;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      background-color: #181818;
-      height: 100vh;
     }
     .chat-log {
       flex-grow: 1;
       overflow-y: auto;
       padding: 1rem;
-      font-size: 0.95rem;
     }
     .chat-item {
       margin-bottom: 1rem;
-      word-wrap: break-word;
     }
     .input-area {
       border-top: 1px solid #333;
       padding: 1rem;
-      background-color: #1f1f1f;
     }
     code, pre {
       background-color: #2c2c2c;
@@ -55,7 +45,6 @@
       display: block;
       white-space: pre-wrap;
       word-break: break-word;
-      color: #dcdcdc;
     }
     @media (max-width: 768px) {
       .sidebar {
@@ -65,223 +54,146 @@
   </style>
 </head>
 <body>
+  <div class="container-fluid chat-container">
+    <div class="row h-100">
+      <!-- Sidebar -->
+      <div class="col-md-3 sidebar d-none d-md-block" id="chat-sidebar">
+        <h5 class="text-white">Conversations</h5>
+        <div id="chat-list" class="mb-3"></div>
+        <button id="new-chat" class="btn btn-sm btn-primary w-100">+ New Chat</button>
+      </div>
 
-<div class="container-fluid chat-container">
-  <div class="row g-0 h-100">
-    <!-- Sidebar -->
-    <div class="col-md-3 sidebar d-none d-md-block" id="chat-sidebar">
-      <h5 class="text-white">Conversations</h5>
-      <div id="chat-list" class="mb-3"></div>
-      <button id="new-chat" class="btn btn-sm btn-primary w-100">+ New Chat</button>
-    </div>
-
-    <!-- Chat Window -->
-    <div class="col-md-9 col-12 d-flex flex-column chat-window p-0">
-      <div class="chat-log" id="chat-log" tabindex="0"></div>
-      <div class="input-area">
-        <div class="input-group">
-          <input
-            type="text"
-            id="user-input"
-            class="form-control"
-            placeholder="Ask a question..."
-            autocomplete="off"
-            aria-label="User input"
-          />
-          <button
-            id="send-button"
-            class="btn btn-success"
-            onclick="sendMessage()"
-            type="button"
-          >Send</button>
+      <!-- Chat Window -->
+      <div class="col-md-9 col-12 p-0 d-flex flex-column chat-window">
+        <div class="chat-log" id="chat-log"></div>
+        <div class="input-area">
+          <div class="input-group">
+            <input
+              type="text"
+              id="user-input"
+              class="form-control"
+              placeholder="Ask a question..."
+              autocomplete="off"
+            />
+            <button
+              class="btn btn-success"
+              onclick="sendMessage()"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<script>
-  function escapeHTML(str) {
-    return str.replace(/[&<>"']/g, function (m) {
-      return {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[m];
-    });
-  }
-
-  function renderMarkdown(markdownText) {
-    const unsafe = marked.parse(markdownText);
-    // Allow only safe tags, escape others
-    return unsafe.replace(
-      /<(?!(\/?(code|pre|strong|em|ul|ol|li|br|p|span|div|h[1-6]|blockquote|table|thead|tbody|tr|th|td|hr|a|img|b|i|u))\b)/gi,
-      '&lt;'
-    );
-  }
-
-  function typeResponse(text, container, speed = 25) {
-    return new Promise((resolve) => {
-      let i = 0;
-      container.innerHTML = '';
-      function type() {
-        if (i < text.length) {
-          container.innerHTML += text.charAt(i);
-          i++;
-          container.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          setTimeout(type, speed);
-        } else {
-          resolve();
-        }
-      }
-      type();
-    });
-  }
-
-  async function loadChats() {
-    const res = await fetch('/conversations');
-    const chats = await res.json();
-    const list = document.getElementById('chat-list');
-    list.innerHTML = '';
-    chats.forEach(chat => {
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-sm btn-outline-light w-100 text-start mb-1';
-      btn.innerText = chat.title;
-      btn.onclick = async () => {
-        await fetch('/switch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chat.id })
-        });
-        await loadHistory(false); // no typing effect on switch
-      };
-      list.appendChild(btn);
-    });
-  }
-
-  async function loadHistory(useTypingEffect = false) {
-    const res = await fetch('/history');
-    const history = await res.json();
-    const log = document.getElementById('chat-log');
-    log.innerHTML = '';
-
-    history.forEach(pair => {
-      const user = document.createElement('div');
-      user.className = 'chat-item';
-      user.innerHTML = `<strong>You:</strong><br>${escapeHTML(pair.user)}`;
-
-      const bot = document.createElement('div');
-      bot.className = 'chat-item';
-      bot.innerHTML = `<strong>Khizr:</strong><br>`;
-
-      if (useTypingEffect) {
-        const span = document.createElement('span');
-        bot.appendChild(span);
-        log.appendChild(user);
-        log.appendChild(bot);
-        // Wait for typing effect to finish before resolving (only for last message)
-        // Here we type all bot messages; if you want only last message animate,
-        // you can tweak logic to animate only last message in array.
-        // For simplicity, let's animate only the last bot message:
-      } else {
-        bot.innerHTML += renderMarkdown(pair.bot);
-        log.appendChild(user);
-        log.appendChild(bot);
-      }
-    });
-
-    if (useTypingEffect && history.length) {
-      // Animate typing for only the last bot message:
-      const lastBot = log.querySelectorAll('.chat-item strong:last-child')[log.querySelectorAll('.chat-item strong:last-child').length - 1];
-      const lastBotSpan = log.querySelectorAll('.chat-item span')[log.querySelectorAll('.chat-item span').length - 1];
-      if (lastBotSpan) {
-        // Clear lastBot's content, then type
-        lastBotSpan.innerHTML = '';
-        await typeResponse(history[history.length - 1].bot, lastBotSpan);
-      }
+  <script>
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, function (m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[m];
+      });
     }
 
-    // Scroll only if user near bottom before loading (avoid jump)
-    const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 150;
-    if (nearBottom) {
+    function renderMarkdown(markdownText) {
+      const unsafe = marked.parse(markdownText);
+      return unsafe.replace(
+        /<(?!(\/?(code|pre|strong|em|ul|ol|li|br|p|span|div|h[1-6]|blockquote|table|thead|tbody|tr|th|td|hr|a|img|b|i|u))\b)/gi,
+        '&lt;'
+      );
+    }
+
+    async function loadChats() {
+      const res = await fetch('/conversations');
+      const chats = await res.json();
+      const list = document.getElementById('chat-list');
+      list.innerHTML = '';
+      chats.forEach((chat) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm btn-outline-light w-100 text-start mb-1';
+        btn.innerText = chat.title;
+        btn.onclick = async () => {
+          await fetch('/switch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chat.id })
+          });
+          await loadHistory(false);
+        };
+        list.appendChild(btn);
+      });
+    }
+
+    async function loadHistory(shouldScroll = true) {
+      const res = await fetch('/history');
+      const history = await res.json();
+      const log = document.getElementById('chat-log');
+      log.innerHTML = '';
+      history.forEach((pair) => {
+        const user = document.createElement('div');
+        user.className = 'chat-item';
+        user.innerHTML = `<strong>You:</strong><br>${escapeHTML(pair.user)}`;
+        const bot = document.createElement('div');
+        bot.className = 'chat-item';
+        bot.innerHTML = `<strong>Khizr:</strong><br>${renderMarkdown(pair.bot)}`;
+        log.appendChild(user);
+        log.appendChild(bot);
+      });
+      if (shouldScroll) log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      const log = document.getElementById('chat-log');
+      const loading = document.createElement('div');
+      loading.className = 'chat-item text-muted';
+      loading.innerText = 'Khizr is typing...';
+      log.appendChild(loading);
       log.scrollTop = log.scrollHeight;
-    }
-  }
 
-  async function sendMessage() {
-    const input = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-button');
-    const message = input.value.trim();
-    if (!message) return;
-
-    // Save if input was focused before sending
-    const wasFocused = (document.activeElement === input);
-
-    input.disabled = true;
-    sendBtn.disabled = true;
-
-    const log = document.getElementById('chat-log');
-    const loading = document.createElement('div');
-    loading.className = 'chat-item text-muted';
-    loading.innerText = 'Khizr is typing...';
-    log.appendChild(loading);
-    log.scrollTop = log.scrollHeight;
-
-    try {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
       });
-      if (!res.ok) throw new Error('Server error');
 
       input.value = '';
-      // Remove loading message before loading history
       loading.remove();
 
-      await loadHistory(true); // use typing effect only for new message
-
-    } catch (err) {
-      alert('Failed to send message. Please try again.');
-      loading.remove();
-    } finally {
-      input.disabled = false;
-      sendBtn.disabled = false;
-      if (wasFocused) input.focus();
+      await loadHistory(true);
     }
-  }
 
-  document.getElementById('new-chat').addEventListener('click', async () => {
-    const newChatBtn = document.getElementById('new-chat');
-    newChatBtn.disabled = true;
-    try {
+    document.getElementById('new-chat').addEventListener('click', async () => {
       await fetch('/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: "New Chat" })
+        body: JSON.stringify({ title: 'New Chat' })
       });
       await loadChats();
       await loadHistory(false);
-    } finally {
-      newChatBtn.disabled = false;
-    }
-  });
+    });
 
-  // Send on Enter key press
-  document.getElementById('user-input').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
+    // Send on Enter key
+    document.getElementById('user-input').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
 
-  window.onload = async () => {
-    await loadChats();
-    await loadHistory(false); // no typing on initial load
-  };
-</script>
-
+    window.onload = async () => {
+      await loadChats();
+      await loadHistory(false);
+      document.getElementById('user-input').focus();
+    };
+  </script>
 </body>
 </html>
