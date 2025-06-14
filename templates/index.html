@@ -110,20 +110,32 @@
     const history = await res.json();
     const log = document.getElementById('chat-log');
     log.innerHTML = '';
-    history.forEach(pair => {
+
+    history.forEach((pair, index) => {
       const user = document.createElement('div');
       user.className = 'chat-item';
       user.innerHTML = `<strong>You:</strong><br>${escapeHTML(pair.user)}`;
+
       const bot = document.createElement('div');
       bot.className = 'chat-item';
-      const span = document.createElement('span');
-      span.id = 'typing-response';
-      bot.innerHTML = `<strong>Khizr:</strong><br>`;
-      bot.appendChild(span);
-      log.appendChild(user);
-      log.appendChild(bot);
-      typeResponse(pair.bot, span);
+
+      if (index === history.length - 1) {
+        // Last message: show typing effect
+        const span = document.createElement('span');
+        span.id = 'typing-response';
+        bot.innerHTML = `<strong>Khizr:</strong><br>`;
+        bot.appendChild(span);
+        log.appendChild(user);
+        log.appendChild(bot);
+        typeResponse(pair.bot, span);
+      } else {
+        // Previous messages: render immediately
+        bot.innerHTML = `<strong>Khizr:</strong><br>${renderMarkdown(pair.bot)}`;
+        log.appendChild(user);
+        log.appendChild(bot);
+      }
     });
+
     if (autoScroll) {
       log.scrollTop = log.scrollHeight;
     }
